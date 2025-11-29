@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>자동차 제동거리 시뮬레이터</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div id="history-panel">
+        <h3>📊 실험 기록 (History)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>속도</th>
+                    <th>날씨</th>
+                    <th>거리</th>
+                    <th>결과</th>
+                </tr>
+            </thead>
+            <tbody id="history-body">
+                <!-- Records will go here -->
+            </tbody>
+        </table>
+    </div>
+
+    <div id="simulation-container">
+        <div class="rain"></div>
+    </div>
+
+    <div id="result-overlay">
+        <h2 id="result-title">결과</h2>
+        <div id="result-message">제동 거리</div>
+        <div id="result-value">0m</div>
+        <button onclick="resetSimulation()" style="margin-top: 20px;">다음 실험 하기 (Next)</button>
+    </div>
+
+    <div id="control-panel">
+        <div class="control-group">
+            <span class="control-label">속도 (Speed)</span>
+            <div class="btn-group" id="speed-controls">
+                <button data-speed="30" class="active">30 km/h</button>
+                <button data-speed="60">60 km/h</button>
+                <button data-speed="100">100 km/h</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">날씨 (Weather)</span>
+            <div class="btn-group" id="weather-controls">
+                <button data-weather="sunny" class="active">☀️ 맑음</button>
+                <button data-weather="rainy">🌧️ 비</button>
+                <button data-weather="icy">❄️ 빙판</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">더미 위치 (Dummy Distance)</span>
+            <div class="btn-group" id="dummy-controls">
+                <button data-distance="400" class="active">40m</button>
+                <button data-distance="700">70m</button>
+                <button data-distance="1000">100m</button>
+            </div>
+        </div>
+
+        <button id="start-btn">출발 (START)</button>
+    </div>
+
+    <div id="legend">
+        🔴 빨간 선: 브레이크 시작 지점<br>
+        10px = 1m
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
