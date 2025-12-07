@@ -32,9 +32,9 @@ const FRICTION_MAP = {
 // Braking force multipliers (higher = stops faster)
 // Adjusted to be more realistic - cars need longer stopping distances
 const BRAKING_FORCE_MAP = {
-    sunny: 0.15,   // Reduced from 0.5 - dry road still good but takes distance
-    rainy: 0.08,   // Reduced from 0.25 - wet road is slippery
-    icy: 0.02      // Reduced from 0.05 - ice is very dangerous
+    sunny: 0.2,    // Reduced for realism
+    rainy: 0.1,    // Reduced for realism
+    icy: 0.02      // Very slippery
 };
 
 const WEATHER_LABELS = {
@@ -54,7 +54,7 @@ let engine = null;
 let render = null;
 let runner = null;
 let brakingStarted = false;
-let startPos = { x: -100, y: 0 }; // Car starts off-screen
+let startPos = { x: 50, y: 0 }; // Car starts on-screen (moved from -100 to 50)
 let history = [];
 
 // --- Setup ---
@@ -115,10 +115,9 @@ function resetWorld() {
     // 1. Ground
     const groundColor = currentWeather === 'icy' ? '#bae6fd' : '#64748b';
     // Make ground very wide to support long distances (100m = 1000px)
-    // Also extend left to cover car start position
     const groundWidth = Math.max(width * 2, 3000); // At least 3000px wide
-    // Position ground so it starts from -200px (to cover car at -100px)
-    const groundCenterX = groundWidth / 2 - 200;
+    // Position ground so it covers the simulation area well
+    const groundCenterX = groundWidth / 2;
     const ground = Bodies.rectangle(groundCenterX, groundY, groundWidth, 40, {
         isStatic: true,
         friction: FRICTION_MAP[currentWeather],
@@ -152,7 +151,7 @@ function resetWorld() {
         render: { fillStyle: '#fbbf24' }
     });
 
-    // 4. Car (Start off-screen left)
+    // 4. Car (Start on-screen left)
     // Use invisible box for physics, we'll draw the car manually
     carBody = Bodies.rectangle(startPos.x, groundY - 30, 80, 40, {
         mass: CAR_MASS,
@@ -164,17 +163,13 @@ function resetWorld() {
         }
     });
 
-    // Add wheels (cosmetic mostly, but part of compound body would be better for physics. 
-    // For simplicity, we slide a box with high mass, or use a simple box)
-    // Let's stick to a simple box for stability in this 2D view.
-
     Composite.add(engine.world, [ground, brakeLine, dummy, dummyHead, carBody]);
 
-    // Reset camera to show the car at start
-    Matter.Render.lookAt(render, {
-        min: { x: startPos.x - 200, y: 0 },
-        max: { x: startPos.x + render.options.width - 200, y: render.options.height }
-    });
+    // Reset camera to initial position - show from x=0
+    render.bounds.min.x = 0;
+    render.bounds.min.y = 0;
+    render.bounds.max.x = render.canvas.width;
+    render.bounds.max.y = render.canvas.height;
 }
 
 function drawCar() {
@@ -305,6 +300,18 @@ function handleUpdate(event) {
     // If velocity is very low for several frames, consider it stopped
     // But only if we haven't crashed yet
     if (brakingStarted && !hasCrashed && !hasFinished) {
+        // 1. Position-based collision check (Backup for physics engine tunneling)
+        // If car front passes dummy front, it's a crash
+        const carFrontX = carBody.position.x + 40; // Car width is 80, so +40 from center
+        const dummyFrontX = BRAKE_LINE_X + currentObstacleDistance - 15; // Dummy width 30, so -15 from center
+
+        if (carFrontX >= dummyFrontX - 5) { // 5px tolerance for visual alignment
+            hasCrashed = true;
+            finishSimulation(true);
+            return;
+        }
+
+        // 2. Stop check
         const speed = Math.abs(carBody.velocity.x);
 
         if (speed < 0.3) {
@@ -312,6 +319,17 @@ function handleUpdate(event) {
 
             // If slow for 30 frames (about 0.5 seconds), force stop
             if (lowSpeedCounter > 30 || speed < 0.05) {
+                // Final check: Did we stop INSIDE or touching the dummy?
+                // Sometimes physics engine doesn't fire collision if we stop exactly at the edge
+                const carFrontX = carBody.position.x + 40;
+                const dummyFrontX = BRAKE_LINE_X + currentObstacleDistance - 15;
+
+                if (carFrontX >= dummyFrontX - 5) { // 5px tolerance for visual alignment
+                    hasCrashed = true;
+                    finishSimulation(true);
+                    return;
+                }
+
                 Body.setVelocity(carBody, { x: 0, y: 0 });
                 finishSimulation(false);
             }
@@ -346,11 +364,9 @@ function finishSimulation(crashed) {
     // If we've already finished but now we have a crash, update to crash
     if (hasFinished && crashed && !hasCrashed) {
         hasCrashed = true;
-        // Re-show result as crash
-        showResult(
-            (Math.max(0, carBody.position.x - BRAKE_LINE_X) / SCALE).toFixed(1),
-            true
-        );
+        // Re-show result as crash - use dummy distance
+        const dummyDistanceM = (currentObstacleDistance / SCALE).toFixed(1);
+        showResult(dummyDistanceM, true);
         return;
     }
 
@@ -363,12 +379,17 @@ function finishSimulation(crashed) {
     hasFinished = true;
     isRunning = false;
 
-    // Calculate distance
-    // Distance from Brake Line to Car's current X
-    // We use the front of the car roughly
-    const stopX = carBody.position.x;
-    const distancePx = Math.max(0, stopX - BRAKE_LINE_X);
-    const distanceM = (distancePx / SCALE).toFixed(1);
+    let distanceM;
+
+    if (crashed) {
+        // For crash, show the dummy distance (where the obstacle is)
+        distanceM = (currentObstacleDistance / SCALE).toFixed(1);
+    } else {
+        // For safe stop, show the actual stopping distance
+        const stopX = carBody.position.x;
+        const distancePx = Math.max(0, stopX - BRAKE_LINE_X);
+        distanceM = (distancePx / SCALE).toFixed(1);
+    }
 
     // Add to history
     addToHistory(currentSpeed, currentWeather, distanceM, crashed);
